@@ -1,0 +1,31 @@
+{
+  "name": "pg-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+
+    "topic.prefix": "pg",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "fraud",
+    "database.password": "secret",
+    "database.dbname": "frauddb",
+
+    "slot.name": "tx_slot",
+    "publication.name": "pub_tx",
+    "plugin.name": "pgoutput",
+
+    "table.include.list": "public.transactions",
+
+    "key.converter":   "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable":   "false",
+    "value.converter.schemas.enable": "false",
+
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "tombstones.on.delete": "false",
+
+    "decimal.handling.mode": "double"
+  }
+}

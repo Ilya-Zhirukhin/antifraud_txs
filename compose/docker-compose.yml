@@ -1,0 +1,86 @@
+version: '3.9'
+
+services:
+  # ---------- DATA BASE ----------
+  postgres:
+    image: postgres:15
+    container_name: pg_cdc
+    environment:
+      POSTGRES_USER: fraud
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: frauddb
+      TZ: Europe/Amsterdam
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: >
+      -c wal_level=logical
+      -c max_replication_slots=4
+      -c max_wal_senders=4
+      -c wal_sender_timeout=0
+
+  # ---------- KAFKA STACK ----------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    ports: ["2181:2181"]
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on: [zookeeper]
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # ---------- SCHEMA REGISTRY ----------
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.0
+    depends_on: [kafka]
+    ports: ["8081:8081"]
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+
+  # ---------- DEBEZIUM CONNECT ----------
+  connect:
+    image: quay.io/debezium/connect:2.6
+    depends_on: [kafka, postgres, schema-registry]
+    ports: ["8083:8083"]
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect-configs
+      OFFSET_STORAGE_TOPIC: connect-offsets
+      STATUS_STORAGE_TOPIC: connect-status
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      PLUGIN_PATH: /kafka/connect
+    volumes:
+      - connect_data:/kafka/connect
+
+  ml_service:
+    build:
+      context: ../ml_service
+    environment:
+      - KAFKA_BOOTSTRAP=kafka:29092
+      - KAFKA_TOPIC_IN=pg.public.transactions
+      - KAFKA_TOPIC_OUT=tx_scored
+      - MODEL_PATH=/models/lgbm_baseline.onnx
+      - CATEG_MAP=/models/cat_map.json
+    volumes:
+      - ../models:/models:ro
+    depends_on: [kafka]
+    restart: unless-stopped
+    ports:             
+      - "8000:8000"       
+
+volumes:
+  pgdata:
+  connect_data:   
