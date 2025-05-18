@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+aiokafka>=0.10
+onnxruntime
+numpy
+lightgbm
+river

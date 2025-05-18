@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Fraud Detection Dashboard</title>
+  <style>
+    /* — Reset & Base — */
+    * { box-sizing: border-box; margin:0; padding:0 }
+    html, body { height:100%; font-family:"Segoe UI",sans-serif; background:#1B262C; color:#E7E7DE }
+    body { display:grid; grid-template-columns:240px 1fr }
+
+    /* — Sidebar — */
+    nav.sidebar {
+      background:#0F4C75; display:flex; flex-direction:column; padding:20px 10px;
+    }
+    nav.sidebar h2 { color:#D8E2DC; text-align:center; margin-bottom:1.5em }
+    nav.sidebar a {
+      display:flex; align-items:center; padding:10px; margin:5px 0;
+      color:#E7E2DC; text-decoration:none; border-radius:6px;
+      transition:background .2s;
+    }
+    nav.sidebar a:hover { background:rgba(255,255,255,.1) }
+    nav.sidebar a .icon { width:24px; margin-right:8px }
+
+    /* — Main Grid — */
+    main {
+      display:grid;
+      grid-template-rows:
+        80px 120px 300px 80px;
+      grid-template-columns:1fr 1fr 1fr 300px;
+      grid-template-areas:
+        "header header header header"
+        "kpi1   kpi2   kpi3   kpi4"
+        "legit  susp   arf    chart"
+        "alerts alerts alerts alerts";
+      gap:16px;
+      padding:16px;
+    }
+
+    /* — Header — */
+    header {
+      grid-area:header;
+      background:#162A3A; border-radius:8px;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 20px; box-shadow:0 2px 6px rgba(0,0,0,0.4);
+    }
+    header h1 { color:#D8E2DC; font-size:1.5em }
+    header #time { color:#A3B18A }
+
+    /* — KPI Cards — */
+    .kpi {
+      background:#1F4E5F; border-radius:8px;
+      padding:16px; display:flex; flex-direction:column;
+      justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.4);
+    }
+    .kpi h3 { color:#A3B18A; margin-bottom:8px; font-size:1em }
+    .kpi p { color:#E7E2DC; font-size:1.8em; font-weight:bold }
+    #kpi1 { grid-area:kpi1 }
+    #kpi2 { grid-area:kpi2 }
+    #kpi3 { grid-area:kpi3 }
+    #kpi4 { grid-area:kpi4 }
+
+    /* — Panel Base — */
+    .panel {
+      background:#1F2D3D; border-radius:8px; padding:12px;
+      box-shadow:0 2px 6px rgba(0,0,0,0.4);
+      display:flex; flex-direction:column;
+    }
+    .panel h2 {
+      color:#A3B18A; margin-bottom:8px; font-size:1em; flex:none;
+    }
+
+    /* — Fixed-height & Scroll — */
+    #legit, #susp, #arf, #chart { height:300px; }
+    .txn-list {
+      flex:1; overflow-y:auto; padding-right:4px;
+    }
+    .txn {
+      display:flex; align-items:flex-start;
+      margin:6px 0; padding:8px; border-radius:6px;
+      background:rgba(255,255,255,0.05); flex:none;
+    }
+    .txn .icon { font-size:1.2em; margin-right:10px }
+    .green .icon { color:#A3B18A }
+    .red   .icon { color:#F75C03 }
+    .blue  .icon { color:#00B4D8 }
+    .txn .details { font-size:0.8em; line-height:1.3; color:#ECECEC }
+
+    /* — Chart Panel: stats + canvas — */
+    #chart { grid-area:chart; display:flex; flex-direction:column; }
+    .stats-row {
+      display:flex; justify-content:space-between;
+      margin-bottom:8px; flex:none;
+    }
+    .mini-stat {
+      background:#254E58; border-radius:6px;
+      padding:6px 10px; text-align:center;
+      flex:1; margin:0 4px;
+    }
+    .mini-stat:first-child { margin-left:0 }
+    .mini-stat:last-child  { margin-right:0 }
+    .mini-stat .label { font-size:0.7em; color:#A3B18A }
+    .mini-stat .value { font-size:1.1em; font-weight:bold; color:#E7E2DC }
+    #chart canvas { flex:1; }
+
+    /* — Alerts — */
+    #alerts {
+      grid-area:alerts; background:#332E2E; border-radius:8px;
+      padding:12px; display:flex; align-items:center;
+      box-shadow:0 2px 6px rgba(0,0,0,0.4); flex:none;
+    }
+    #alerts .icon { font-size:1.5em; margin-right:12px }
+    #alerts .text { font-size:1em; color:#F28482 }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <h2>Dashboard</h2>
+    <a href="#"><span class="icon">🏠</span> Home</a>
+    <a href="#"><span class="icon">💳</span> Transactions</a>
+    <a href="#"><span class="icon">📊</span> Analytics</a>
+    <a href="#"><span class="icon">⚙️</span> Settings</a>
+  </nav>
+
+  <!-- Main -->
+  <main>
+    <header>
+      <h1>Real-Time Fraud Monitor</h1>
+      <div id="time"></div>
+    </header>
+
+    <div class="kpi" id="kpi1">
+      <h3>Total TXs</h3><p id="total-txs">0</p>
+    </div>
+    <div class="kpi" id="kpi2">
+      <h3>Fraud %</h3><p id="fraud-pct">0%</p>
+    </div>
+    <div class="kpi" id="kpi3">
+      <h3>Current AUC</h3><p id="current-auc">0.00</p>
+    </div>
+    <div class="kpi" id="kpi4">
+      <h3>ARF Fraud %</h3><p id="arf-pct">0%</p>
+    </div>
+
+    <div class="panel" id="legit">
+      <h2>✅ Legit Transactions</h2>
+      <ul class="txn-list" id="legit-list"></ul>
+    </div>
+
+    <div class="panel" id="susp">
+      <h2>🔴 Suspicious Transactions (LGBM)</h2>
+      <ul class="txn-list" id="susp-list"></ul>
+    </div>
+
+    <div class="panel" id="arf">
+      <h2>🧠 ARF-Detected Fraud</h2>
+      <ul class="txn-list" id="arf-list"></ul>
+    </div>
+
+    <div class="panel" id="chart">
+      <h2>Drift ROC-AUC Over Time</h2>
+      <div class="stats-row">
+        <div class="mini-stat"><div class="label">p-99 Latency, ms</div><div class="value" id="stat-p99">0</div></div>
+        <div class="mini-stat"><div class="label">Avg Latency, ms</div><div class="value" id="stat-avg">0</div></div>
+        <div class="mini-stat"><div class="label">LGBM Acc</div><div class="value" id="stat-model-acc">0%</div></div>
+        <div class="mini-stat"><div class="label">ARF Acc</div><div class="value" id="stat-arf-acc">0%</div></div>
+      </div>
+      <canvas id="aucChart"></canvas>
+    </div>
+
+    <div id="alerts">
+      <span class="icon">⚠️</span>
+      <span class="text" id="alert-text">No drift detected yet.</span>
+    </div>
+  </main>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>
